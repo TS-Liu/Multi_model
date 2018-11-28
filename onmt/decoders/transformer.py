@@ -49,7 +49,7 @@ class TransformerDecoderLayer(nn.Module):
         # it gets TransformerDecoderLayer's cuda behavior automatically.
         self.register_buffer('mask', mask)
 
-    def forward(self, inputs, tgtm, srcm, memory_bank, src_pad_mask, tgt_pad_mask,
+    def forward(self, inputs, memory_bank, src_pad_mask, tgt_pad_mask,
                 previous_input=None, layer_cache=None, step=None):
         """
         Args:
@@ -114,6 +114,61 @@ class TransformerDecoderLayer(nn.Module):
         return subsequent_mask
 
 
+
+class MemoryLayer(nn.Module):
+
+    def __init__(self, d_model, heads, d_ff, dropout):
+        super(MemoryLayer, self).__init__()
+
+        self.ma_l1 = onmt.modules.MultiHeadedAttention(
+                heads, d_model, dropout=dropout)
+        self.ma_l2 = onmt.modules.MultiHeadedAttention(
+                heads, d_model, dropout=dropout)
+
+        self.ffn = PositionwiseFeedForward(d_model, d_ff, dropout)
+        self.ma_l1_prenorm = nn.LayerNorm(d_model, eps=1e-6)
+        self.ma_l2_prenorm = nn.LayerNorm(d_model, eps=1e-6)
+
+        self.ffn_prenorm = nn.LayerNorm(d_model, eps=1e-6)
+
+        self.ma_l1_postdropout = nn.Dropout(dropout)
+        self.ma_l2_postdropout = nn.Dropout(dropout)
+
+        self.ffn_postdropout = nn.Dropout(dropout)
+
+        self.w = nn.Linear(d_model, d_model)
+        self.u = nn.Linear(d_model, d_model)
+        self.s = nn.Sigmoid()
+
+    def forward(self, output, src, src_m, tgt_m, src_memory_bank, sc_bias, s_bias):
+        # self multihead attention
+        batch, lens, dim = src_memory_bank.size()
+
+        src_memory_bank = src_memory_bank.view(batch*lens, 1, dim)
+        outputs_m = src_m.view(batch, lens, 7, dim).view(batch*lens, 7, dim)
+        s_norm_x = self.ma_l1_prenorm(src_memory_bank)
+        s_y, s_ = self.ma_l1(s_norm_x, outputs_m, self.num_heads, sc_bias)
+        s_x = self.ma_l1_postdropout(s_y)+src_memory_bank
+        s_x = s_x.view(batch, lens, dim)
+
+        outputt_m = tgt_m
+        s_x = s_x.unsqueeze(2).repeat(1, 1, 2, 1).view(batch, lens*2, dim)
+
+        s_t_m = torch.cat((outputt_m, s_x), dim=2)
+
+        s_t_norm_x = self.ma_l2_prenorm(output)
+        s_t_y, s_t_ = self.ma_l2(s_t_norm_x, s_t_m, self.num_heads, s_bias)
+        s_t_x = self.ma_l2_postdropout(s_t_y)
+
+        y = self.ffn(self.ffn_prenorm(s_t_x))
+        output_h = self.ffn_postdropout(y) + s_t_x
+
+        B = self.s(self.w(output) + self.u(output_h))
+        ans = (1 - B) * output + B * output_h
+
+        return ans, s_t_, B
+
+
 class TransformerDecoder(nn.Module):
     """
     The Transformer decoder from "Attention is All You Need".
@@ -162,6 +217,7 @@ class TransformerDecoder(nn.Module):
             [TransformerDecoderLayer(d_model, heads, d_ff, dropout,
              self_attn_type=self_attn_type)
              for _ in range(num_layers)])
+        self.memory = MemoryLayer(d_model, heads, d_ff, dropout)
 
         # TransformerDecoder has its own attention mechanism.
         # Set up a separated copy attention layer, if needed.
@@ -215,7 +271,7 @@ class TransformerDecoder(nn.Module):
                 self.state["previous_layer_inputs"].detach()
         self.state["src"] = self.state["src"].detach()
 
-    def forward(self, tgt, tgt_m, emb_srcm, memory_bank, memory_lengths=None,
+    def forward(self, tgt, tgt_m, emb_src, emb_srcm, memory_bank, memory_lengths=None,
                 step=None, cache=None):
         """
         See :obj:`onmt.modules.RNNDecoderBase.forward()`
@@ -240,7 +296,9 @@ class TransformerDecoder(nn.Module):
         assert emb.dim() == 3  # len x batch x embedding_dim
 
         output = emb.transpose(0, 1).contiguous()
-        output_m = emb_m.view(src_len, src_batch, 2, -1).transpose(0, 1).contiguous().view(src_batch, src_len * 2, -1)
+        outputs = emb_src.transpose(0, 1).contiguous()
+        outputs_m = emb_srcm
+        outputt_m = emb_m.view(src_len, src_batch, 2, -1).transpose(0, 1).contiguous().view(src_batch, src_len * 2, -1)
         src_memory_bank = memory_bank.transpose(0, 1).contiguous()
 
         padding_idx = self.embeddings.word_padding_idx
@@ -259,7 +317,7 @@ class TransformerDecoder(nn.Module):
                     prev_layer_input = self.state["previous_layer_inputs"][i]
             output, attn, all_input \
                 = self.transformer_layers[i](
-                    output, output_m, emb_srcm, src_memory_bank,
+                    output, src_memory_bank,
                     src_pad_mask, tgt_pad_mask,
                     previous_input=prev_layer_input,
                     layer_cache=self.state["cache"]["layer_{}".format(i)]
@@ -268,6 +326,8 @@ class TransformerDecoder(nn.Module):
             if self.state["cache"] is None:
                 saved_inputs.append(all_input)
 
+        output, attn, B = self.memory(output, outputs, outputs_m, outputt_m, src_memory_bank, sc_bias, s_bias)
+
         if self.state["cache"] is None:
             saved_inputs = torch.stack(saved_inputs)
 
@@ -275,6 +335,7 @@ class TransformerDecoder(nn.Module):
 
         # Process the result and update the attentions.
         dec_outs = output.transpose(0, 1).contiguous()
+        B = B.transpose(0, 1).contiguous()
         attn = attn.transpose(0, 1).contiguous()
 
         attns["std"] = attn
@@ -284,7 +345,7 @@ class TransformerDecoder(nn.Module):
         if self.state["cache"] is None:
             self.update_state(tgt, saved_inputs)
         # TODO change the way attns is returned dict => list or tuple (onnx)
-        return dec_outs, attns
+        return dec_outs, attns, B
 
     def _init_cache(self, memory_bank, num_layers, self_attn_type):
         self.state["cache"] = {}
