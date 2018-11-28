@@ -185,12 +185,12 @@ def preprocess_opts(parser):
               help="Path to the validation source data")
     group.add('--valid_tgt', '-valid_tgt', required=True,
               help="Path to the validation target data")
-    group.add('--valid_src', '-valid_src', required=True,
-              help="Path to the validation source data")
-    group.add('--valid_tgt', '-valid_tgt', required=True,
-              help="Path to the validation target data")
-    group.add('--valid_tgt', '-valid_tgt', required=True,
-              help="Path to the validation target data")
+    group.add('--valid_src_m', '-valid_src_m', required=True,
+              help="Path to the validation source_m data")
+    group.add('--valid_tgt_m', '-valid_tgt_m', required=True,
+              help="Path to the validation target_m data")
+    group.add('--valid_tgt_m_p', '-valid_tgt_m_p', required=True,
+              help="Path to the validation target_m_p data")
 
     group.add('--src_dir', '-src_dir', default="",
               help="Source directory for image or audio files.")
