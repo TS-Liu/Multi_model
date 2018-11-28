@@ -159,7 +159,7 @@ class TextDataset(DatasetBase):
         Returns:
             (example_dict iterator, num_feats) tuple.
         """
-        assert side in ['src', 'tgt']
+        assert side in ['src', 'tgt', 'src_m', 'tgt_m', 'tgt_m_p']
 
         if text_iter is None:
             if text_path is not None:
