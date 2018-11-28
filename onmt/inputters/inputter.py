@@ -249,15 +249,15 @@ def build_dataset(fields, data_type, src_data_iter=None, src_path=None,
 
     srcm_examples_iter, num_srcm_feats = \
         TextDataset.make_text_examples_nfeats_tpl(
-            srcm_data_iter, srcm_path, src_seq_length_trunc, "srcm")
+            srcm_data_iter, srcm_path, src_seq_length_trunc, "src_m")
 
     tgtm_examples_iter, num_tgtm_feats = \
         TextDataset.make_text_examples_nfeats_tpl(
-            tgtm_data_iter, tgtm_path, tgt_seq_length_trunc, "tgtm")
+            tgtm_data_iter, tgtm_path, tgt_seq_length_trunc, "tgt_m")
 
     tgt_mp_examples_iter, num_tgt_mp_feats = \
         TextDataset.make_text_examples_nfeats_tpl(
-            tgt_mp_data_iter, tgt_mp_path, tgt_seq_length_trunc, "tgt_mp")
+            tgt_mp_data_iter, tgt_mp_path, tgt_seq_length_trunc, "tgt_m_p")
 
     if data_type == 'text':
         dataset = TextDataset(fields, src_examples_iter, tgt_examples_iter,
