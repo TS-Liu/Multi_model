@@ -175,8 +175,20 @@ def preprocess_opts(parser):
               help="Path to the training source data")
     group.add('--train_tgt', '-train_tgt', required=True,
               help="Path to the training target data")
+    group.add('--train_src_m', '-train_src_m', required=True,
+              help="Path to the training source_m data")
+    group.add('--train_tgt_m', '-train_tgt_m', required=True,
+              help="Path to the training target_m data")
+    group.add('--train_tgt_m_p', '-train_tgt_m_p', required=True,
+              help="Path to the training target_m_p data")
     group.add('--valid_src', '-valid_src', required=True,
               help="Path to the validation source data")
+    group.add('--valid_tgt', '-valid_tgt', required=True,
+              help="Path to the validation target data")
+    group.add('--valid_src', '-valid_src', required=True,
+              help="Path to the validation source data")
+    group.add('--valid_tgt', '-valid_tgt', required=True,
+              help="Path to the validation target data")
     group.add('--valid_tgt', '-valid_tgt', required=True,
               help="Path to the validation target data")
 
