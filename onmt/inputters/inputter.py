@@ -139,7 +139,7 @@ def make_features(batch, side, data_type='text'):
         A sequence of src/tgt tensors with optional feature tensors
         of size (len x batch).
     """
-    assert side in ['src', 'tgt', 'src_m', 'tgt_m', 'tgt_m_p']
+    assert side in ['src', 'tgt', 'src_m', 'tgt_m', 'tgt_mp']
     if isinstance(batch.__dict__[side], tuple):
         data = batch.__dict__[side][0]
     else:
@@ -257,7 +257,7 @@ def build_dataset(fields, data_type, src_data_iter=None, src_path=None,
 
     tgt_mp_examples_iter, num_tgt_mp_feats = \
         TextDataset.make_text_examples_nfeats_tpl(
-            tgt_mp_data_iter, tgt_mp_path, tgt_seq_length_trunc, "tgt_m_p")
+            tgt_mp_data_iter, tgt_mp_path, tgt_seq_length_trunc, "tgt_mp")
 
     if data_type == 'text':
         dataset = TextDataset(fields, src_examples_iter, tgt_examples_iter,
