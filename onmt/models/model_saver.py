@@ -48,7 +48,8 @@ class ModelSaverBase(object):
         """
         if self.keep_checkpoint == 0:
             return
-
+        if step >= 2000:
+            self.save_checkpoint_steps = 20
         if step % self.save_checkpoint_steps != 0:
             return
 

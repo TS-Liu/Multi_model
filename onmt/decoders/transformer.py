@@ -129,12 +129,7 @@ class MemoryLayer(nn.Module):
         self.ma_l1_prenorm = nn.LayerNorm(d_model, eps=1e-6)
         self.ma_l2_prenorm = nn.LayerNorm(d_model, eps=1e-6)
 
-        self.ffn_prenorm = nn.LayerNorm(d_model, eps=1e-6)
-
-        self.ma_l1_postdropout = nn.Dropout(dropout)
-        self.ma_l2_postdropout = nn.Dropout(dropout)
-
-        self.ffn_postdropout = nn.Dropout(dropout)
+        self.dropout = nn.Dropout(dropout)
 
         self.w = nn.Linear(d_model, d_model)
         self.u = nn.Linear(d_model, d_model)
@@ -147,8 +142,12 @@ class MemoryLayer(nn.Module):
         src_memory_bank = src_memory_bank.view(batch*lens, 1, dim)
         outputs_m = src_m.view(batch, lens, 7, dim).view(batch*lens, 7, dim)
         s_norm_x = self.ma_l1_prenorm(src_memory_bank)
-        s_y, s_ = self.ma_l1(s_norm_x, outputs_m, self.num_heads, sc_bias)
-        s_x = self.ma_l1_postdropout(s_y)+src_memory_bank
+        s_y, s_ = self.ma_l1(outputs_m, outputs_m, s_norm_x,
+                            mask=sc_bias,
+                            layer_cache=None,
+                            type="context")
+
+        s_x = self.dropout(s_y)+src_memory_bank
         s_x = s_x.view(batch, lens, dim)
 
         outputt_m = tgt_m
@@ -157,11 +156,12 @@ class MemoryLayer(nn.Module):
         s_t_m = torch.cat((outputt_m, s_x), dim=2)
 
         s_t_norm_x = self.ma_l2_prenorm(output)
-        s_t_y, s_t_ = self.ma_l2(s_t_norm_x, s_t_m, self.num_heads, s_bias)
-        s_t_x = self.ma_l2_postdropout(s_t_y)
+        s_t_y, s_t_ = self.ma_l2(s_t_m, s_t_m, s_t_norm_x,
+                            mask=sc_bias,
+                            layer_cache=None,
+                            type="context")
 
-        y = self.ffn(self.ffn_prenorm(s_t_x))
-        output_h = self.ffn_postdropout(y) + s_t_x
+        output_h = self.ffn(self.dropout(s_t_y))
 
         B = self.s(self.w(output) + self.u(output_h))
         ans = (1 - B) * output + B * output_h
@@ -228,16 +228,15 @@ class TransformerDecoder(nn.Module):
             self._copy = True
         self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
 
-    def init_state(self, src, memory_bank, enc_hidden, with_cache=False):
+    def init_state(self, src, src_m, tgt_m, with_cache=False):
         """ Init decoder state """
         self.state["src"] = src
+        self.state["src_m"] = src_m
+        self.state["tgt_m"] = tgt_m
         self.state["previous_input"] = None
         self.state["previous_layer_inputs"] = None
         self.state["cache"] = None
 
-        if with_cache:
-            self._init_cache(memory_bank, self.num_layers,
-                             self.self_attn_type)
 
     def update_state(self, new_input, previous_layer_inputs):
 
@@ -271,14 +270,19 @@ class TransformerDecoder(nn.Module):
                 self.state["previous_layer_inputs"].detach()
         self.state["src"] = self.state["src"].detach()
 
-    def forward(self, tgt, tgt_m, emb_src, emb_srcm, memory_bank, memory_lengths=None,
+    def forward(self, tgt, emb_src, emb_srcm, memory_bank, memory_lengths=None,
                 step=None, cache=None):
         """
         See :obj:`onmt.modules.RNNDecoderBase.forward()`
         """
         src = self.state["src"]
+        src_m = self.state["src_m"]
+        tgt_m = self.state["tgt_m"]
+        src_len, src_batch, _ = src.size()
         src_words = src[:, :, 0].transpose(0, 1)
         tgt_words = tgt[:, :, 0].transpose(0, 1)
+        src_m_words = src_m[:, :, 0].transpose(0, 1)
+        tgt_m_words = tgt_m[:, :, 0].transpose(0, 1)
         src_batch, src_len = src_words.size()
         tgt_batch, tgt_len = tgt_words.size()
 
@@ -304,6 +308,10 @@ class TransformerDecoder(nn.Module):
         padding_idx = self.embeddings.word_padding_idx
         src_pad_mask = src_words.data.eq(padding_idx).unsqueeze(1) \
             .expand(src_batch, tgt_len, src_len)
+        srcm_pad_mask = src_m_words.data.eq(padding_idx).unsqueeze(1) \
+            .expand(src_batch, tgt_len, src_len)
+        tgtm_pad_mask = tgt_m_words.data.eq(padding_idx).unsqueeze(1) \
+            .expand(src_batch, tgt_len, src_len)
         tgt_pad_mask = tgt_words.data.eq(padding_idx).unsqueeze(1) \
             .expand(tgt_batch, tgt_len, tgt_len)
 
@@ -326,7 +334,7 @@ class TransformerDecoder(nn.Module):
             if self.state["cache"] is None:
                 saved_inputs.append(all_input)
 
-        output, attn, B = self.memory(output, outputs, outputs_m, outputt_m, src_memory_bank, sc_bias, s_bias)
+        output, attn, B = self.memory(output, outputs, outputs_m, outputt_m, src_memory_bank, srcm_pad_mask, tgtm_pad_mask)
 
         if self.state["cache"] is None:
             saved_inputs = torch.stack(saved_inputs)

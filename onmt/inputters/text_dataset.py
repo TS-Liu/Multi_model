@@ -233,7 +233,7 @@ class TextDataset(DatasetBase):
         fields["src_m"] = Field(
             pad_token=PAD_WORD)
         fields["tgt_m_p"] = Field(
-            use_vocab=False, dtype=torch.FloatTensor)
+            use_vocab=False)
 
         fields["src"] = Field(
             pad_token=PAD_WORD,
