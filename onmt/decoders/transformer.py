@@ -308,10 +308,10 @@ class TransformerDecoder(nn.Module):
         padding_idx = self.embeddings.word_padding_idx
         src_pad_mask = src_words.data.eq(padding_idx).unsqueeze(1) \
             .expand(src_batch, tgt_len, src_len)
-        srcm_pad_mask = src_m_words.data.eq(padding_idx).unsqueeze(1) \
-            .expand(src_batch, tgt_len, src_len)
+        srcm_pad_mask = src_m_words.data.eq(padding_idx).view(src_batch, src_len, 7).view(src_batch*src_len, 7).unsqueeze(1) \
+            .expand(src_batch*src_len, 1, 7)
         tgtm_pad_mask = tgt_m_words.data.eq(padding_idx).unsqueeze(1) \
-            .expand(src_batch, tgt_len, src_len)
+            .expand(src_batch, tgt_len, src_len*2)
         tgt_pad_mask = tgt_words.data.eq(padding_idx).unsqueeze(1) \
             .expand(tgt_batch, tgt_len, tgt_len)
 
