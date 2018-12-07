@@ -87,7 +87,7 @@ class LossComputeBase(nn.Module):
     def padding_idx(self):
         return self.criterion.ignore_index
 
-    def _make_shard_state(self, batch, output, range_, attns=None):
+    def _make_shard_state(self, batch, output, range_, tgt_m_p, attns=None, B=None):
         """
         Make shard state dictionary for shards() to return iterable
         shards for efficient loss computation. Subclass must define
@@ -114,7 +114,7 @@ class LossComputeBase(nn.Module):
         """
         return NotImplementedError
 
-    def monolithic_compute_loss(self, batch, output, attns):
+    def monolithic_compute_loss(self, batch, output, tgt_m_p, attns, B):
         """
         Compute the forward loss for the batch.
 
@@ -129,7 +129,7 @@ class LossComputeBase(nn.Module):
             :obj:`onmt.utils.Statistics`: loss statistics
         """
         range_ = (0, batch.tgt.size(0))
-        shard_state = self._make_shard_state(batch, output, range_, attns)
+        shard_state = self._make_shard_state(batch, output, range_, tgt_m_p, attns, B)
         _, batch_stats = self._compute_loss(batch, **shard_state)
 
         return batch_stats
@@ -234,7 +234,7 @@ class NMTLossCompute(LossComputeBase):
     def __init__(self, criterion, generator, normalization="sents"):
         super(NMTLossCompute, self).__init__(criterion, generator)
 
-    def _make_shard_state(self, batch, output, range_, tgt_m_p, attns=None, B):
+    def _make_shard_state(self, batch, output, range_, tgt_m_p, attns=None, B=None):
         return {
             "output": output,
             "target": batch.tgt[range_[0] + 1: range_[1]],

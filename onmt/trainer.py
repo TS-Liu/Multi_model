@@ -231,13 +231,16 @@ class Trainer(object):
                 src_lengths = None
 
             tgt = inputters.make_features(batch, 'tgt')
+            src_m = inputters.make_features(batch, 'src_m')
+            tgt_m = inputters.make_features(batch, 'tgt_m')
+            tgt_m_p = inputters.make_features(batch, 'tgt_mp')
 
             # F-prop through the model.
-            outputs, attns = self.model(src, tgt, src_lengths)
+            outputs, attns, B = self.model(src, tgt, src_m, tgt_m, src_lengths)
 
             # Compute loss.
             batch_stats = self.valid_loss.monolithic_compute_loss(
-                batch, outputs, attns)
+                batch, outputs, tgt_m_p, attns, B)
 
             # Update statistics.
             stats.update(batch_stats)
