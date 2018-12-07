@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/Multi_model.iml" filepath="$PROJECT_DIR$/.idea/Multi_model.iml" />
+      <module fileurl="file://E:/memory/.idea/memory.iml" filepath="E:/memory/.idea/memory.iml" />
     </modules>
   </component>
 </project>
