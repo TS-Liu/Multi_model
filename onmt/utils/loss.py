@@ -255,7 +255,7 @@ class NMTLossCompute(LossComputeBase):
         tgt_mp_mask = Variable(tgt_m_p.data.ne(2).float(), requires_grad=False)
 
         G_loss = self.criterion_G(torch.masked_select(B.mean(dim=2), tgt_mp_mask.byte()),
-                                  torch.masked_select(tgt_m_p, tgt_mp_mask.byte()))
+                                  torch.masked_select(tgt_m_p.float(), tgt_mp_mask.byte()))
 
         loss_all = loss + G_loss
         stats = self._stats(loss_all.clone(), scores, gtruth)
