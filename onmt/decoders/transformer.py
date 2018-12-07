@@ -130,7 +130,7 @@ class MemoryLayer(nn.Module):
         self.ma_l2_prenorm = nn.LayerNorm(d_model, eps=1e-6)
 
         self.dropout = nn.Dropout(dropout)
-
+        self.v = nn.Linear(d_model*2, d_model)
         self.w = nn.Linear(d_model, d_model)
         self.u = nn.Linear(d_model, d_model)
         self.s = nn.Sigmoid()
@@ -154,10 +154,11 @@ class MemoryLayer(nn.Module):
         s_x = s_x.unsqueeze(2).repeat(1, 1, 2, 1).view(batch, lens*2, dim)
 
         s_t_m = torch.cat((outputt_m, s_x), dim=2)
+        s_t_m = self.v(s_t_m)
 
         s_t_norm_x = self.ma_l2_prenorm(output)
         s_t_y, s_t_ = self.ma_l2(s_t_m, s_t_m, s_t_norm_x,
-                            mask=sc_bias,
+                            mask=s_bias,
                             layer_cache=None,
                             type="context")
 
