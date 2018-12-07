@@ -6,6 +6,7 @@ from __future__ import division
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.autograd import Variable
 
 import onmt
 import onmt.inputters as inputters
@@ -133,7 +134,7 @@ class LossComputeBase(nn.Module):
 
         return batch_stats
 
-    def sharded_compute_loss(self, batch, output, attns,
+    def sharded_compute_loss(self, batch, output, tgt_mp, attns, B,
                              cur_trunc, trunc_size, shard_size,
                              normalization):
         """Compute the forward loss and backpropagate.  Computation is done
@@ -165,7 +166,7 @@ class LossComputeBase(nn.Module):
         """
         batch_stats = onmt.utils.Statistics()
         range_ = (cur_trunc, cur_trunc + trunc_size)
-        shard_state = self._make_shard_state(batch, output, range_, attns)
+        shard_state = self._make_shard_state(batch, output, range_, tgt_mp, attns, B)
         for shard in shards(shard_state, shard_size):
             loss, stats = self._compute_loss(batch, **shard)
             loss.div(float(normalization)).backward()
@@ -233,22 +234,32 @@ class NMTLossCompute(LossComputeBase):
     def __init__(self, criterion, generator, normalization="sents"):
         super(NMTLossCompute, self).__init__(criterion, generator)
 
-    def _make_shard_state(self, batch, output, range_, attns=None):
+    def _make_shard_state(self, batch, output, range_, tgt_m_p, attns=None, B):
         return {
             "output": output,
             "target": batch.tgt[range_[0] + 1: range_[1]],
+            "tgt_m_p": tgt_m_p,
+            "B": B,
         }
 
-    def _compute_loss(self, batch, output, target):
+    def _compute_loss(self, batch, output, target, tgt_m_p, B):
         bottled_output = self._bottle(output)
 
         scores = self.generator(bottled_output)
         gtruth = target.view(-1)
 
         loss = self.criterion(scores, gtruth)
-        stats = self._stats(loss.clone(), scores, gtruth)
+        tgt_m_p = Variable(tgt_m_p[:, :, 0].data, requires_grad=False)
 
-        return loss, stats
+        tgt_mp_mask = Variable(tgt_m_p.data.ne(2).float(), requires_grad=False)
+
+        G_loss = self.criterion_G(torch.masked_select(B.mean(dim=2), tgt_mp_mask.byte()),
+                                  torch.masked_select(tgt_m_p, tgt_mp_mask.byte()))
+
+        loss_all = loss + G_loss
+        stats = self._stats(loss_all.clone(), scores, gtruth)
+
+        return loss_all, stats
 
 
 def filter_shard_state(state, shard_size=None):

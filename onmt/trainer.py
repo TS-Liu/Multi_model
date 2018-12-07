@@ -271,9 +271,9 @@ class Trainer(object):
                 src_lengths = None
 
             tgt_outer = inputters.make_features(batch, 'tgt')
-            src_m = onmt.io.make_features(batch, 'src_m')
-            tgt_m = onmt.io.make_features(batch, 'tgt_m')
-            tgt_m_p = onmt.io.make_features(batch, 'tgt_mp')
+            src_m = inputters.make_features(batch, 'src_m')
+            tgt_m = inputters.make_features(batch, 'tgt_m')
+            tgt_m_p = inputters.make_features(batch, 'tgt_mp')
 
             for j in range(0, target_size-1, trunc_size):
                 # 1. Create truncated target.
@@ -287,7 +287,7 @@ class Trainer(object):
 
                 # 3. Compute loss in shards for memory efficiency.
                 batch_stats = self.train_loss.sharded_compute_loss(
-                    batch, outputs, attns, j,
+                    batch, outputs, tgt_m_p, attns, B, j,
                     trunc_size, self.shard_size, normalization)
                 total_stats.update(batch_stats)
                 report_stats.update(batch_stats)
