@@ -276,7 +276,7 @@ class Trainer(object):
             tgt_outer = inputters.make_features(batch, 'tgt')
             src_m = inputters.make_features(batch, 'src_m')
             tgt_m = inputters.make_features(batch, 'tgt_m')
-            tgt_m_p = inputters.make_features(batch, 'tgt_mp')
+            tgt_m_p = inputters.make_features(batch, 'tgt_m_p')
 
             for j in range(0, target_size-1, trunc_size):
                 # 1. Create truncated target.

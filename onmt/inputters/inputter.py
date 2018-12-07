@@ -139,7 +139,7 @@ def make_features(batch, side, data_type='text'):
         A sequence of src/tgt tensors with optional feature tensors
         of size (len x batch).
     """
-    assert side in ['src', 'tgt', 'src_m', 'tgt_m', 'tgt_m_p']
+    #assert side in ['src', 'tgt', 'src_m', 'tgt_m', 'tgt_m_p']
     if isinstance(batch.__dict__[side], tuple):
         data = batch.__dict__[side][0]
     else:
