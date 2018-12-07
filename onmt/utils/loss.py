@@ -233,6 +233,7 @@ class NMTLossCompute(LossComputeBase):
 
     def __init__(self, criterion, generator, normalization="sents"):
         super(NMTLossCompute, self).__init__(criterion, generator)
+        self.criterion_G = nn.BCELoss(size_average=False)
 
     def _make_shard_state(self, batch, output, range_, tgt_m_p, attns=None, B=None):
         return {
